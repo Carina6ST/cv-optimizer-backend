@@ -1,0 +1,17 @@
+fastapi
+starlette
+uvicorn[standard]
+python-multipart
+sqlalchemy
+passlib[bcrypt]
+pyjwt
+email-validator
+pdfplumber
+python-docx
+textstat
+pydantic
+pydantic-settings
+python-dotenv
+requests
+stripe>=5.0
+
