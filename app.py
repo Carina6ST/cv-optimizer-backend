@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from db.session import Base, engine
 from routers import auth, resume, analyze, health
+from routers import auth_reset
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -21,3 +23,4 @@ app.include_router(health.router, prefix="", tags=["health"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(resume.router, tags=["resume"])
 app.include_router(analyze.router, tags=["analyze"])
+app.include_router(auth_reset.router)
