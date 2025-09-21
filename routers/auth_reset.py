@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, EmailStr
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET = settings.SECRET_KEY
-SALT   = "password-reset"  # constant salt for reset tokens
+SALT   = "password-reset"
 TOKEN_MAX_AGE = 60 * 60 * 2  # 2 hours
 
 def signer() -> URLSafeTimedSerializer:
@@ -34,10 +34,9 @@ class ResetApply(BaseModel):
     token: str
     new_password: str
 
-@router.post("/request-reset")
-def request_reset(payload: ResetRequest, bg: BackgroundTasks, db: Session = next(get_db())):
+@router.post("/request-reset", response_model=dict)
+def request_reset(payload: ResetRequest, bg: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
-    # Always respond OK to avoid user enumeration
     if user:
         token = signer().dumps({"uid": user.id, "email": user.email})
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -51,8 +50,8 @@ def request_reset(payload: ResetRequest, bg: BackgroundTasks, db: Session = next
         bg.add_task(send_email, user.email, subject, html)
     return {"ok": True}
 
-@router.post("/reset-password")
-def reset_password(payload: ResetApply, db: Session = next(get_db())):
+@router.post("/reset-password", response_model=dict)
+def reset_password(payload: ResetApply, db: Session = Depends(get_db)):
     try:
         data = signer().loads(payload.token, max_age=TOKEN_MAX_AGE)
     except SignatureExpired:

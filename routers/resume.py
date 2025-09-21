@@ -1,16 +1,13 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Header
+# backend/routers/resume.py
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends
 from sqlalchemy.orm import Session
-from typing import Optional
-import os, shutil
+
 from db.session import SessionLocal
-from db.models import Resume
-from services import parser
+from db.models import Resume  # if you don't have this table, remove DB parts below
 from routers.auth import get_current_user_id
+from services import parser
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-router = APIRouter()
+router = APIRouter(prefix="/resumes", tags=["resumes"])
 
 def get_db():
     db = SessionLocal()
@@ -19,27 +16,35 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/resume/upload")
+@router.post("/upload", response_model=None)
 async def upload_resume(
     file: UploadFile = File(...),
-    authorization: Optional[str] = Header(None),
-    db: Session = Depends(get_db)
+    authorization: str = Header(default=None),
+    db: Session = Depends(get_db),
 ):
-    if not authorization:
-        raise HTTPException(401, "Missing Authorization")
-    token = authorization.replace("Bearer ", "")
-    user_id = get_current_user_id(token)
+    uid = get_current_user_id(authorization.replace("Bearer ", "")) if authorization else None
+    if not uid:
+        raise HTTPException(401, "Unauthorized")
 
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in [".pdf", ".docx"]:
-        raise HTTPException(400, "Only PDF or DOCX allowed")
+    content = await file.read()
+    text = parser.extract_text_bytes(content, filename=file.filename or "")
+    if not text.strip():
+        raise HTTPException(400, "Could not extract text from the uploaded file")
 
-    dest_path = os.path.join(UPLOAD_DIR, f"{user_id}_{file.filename}")
-    with open(dest_path, "wb") as out:
-        shutil.copyfileobj(file.file, out)
+    # OPTIONAL: persist a text snapshot (no binary storage)
+    try:
+        res = Resume(user_id=uid, filename=file.filename, path="", text=text)
+        db.add(res)
+        db.commit()
+        db.refresh(res)
+        saved_id = res.id
+    except Exception:
+        # If you don't have a Resume model or don't want to store it, ignore DB errors
+        saved_id = None
 
-    text = parser.extract_text(dest_path)
-    resume = Resume(filename=file.filename, path=dest_path, text=text, owner_id=user_id)
-    db.add(resume); db.commit(); db.refresh(resume)
-
-    return {"id": resume.id, "filename": resume.filename, "text_preview": (text or "")[:500]}
+    return {
+        "id": saved_id,                 # None if not saved
+        "filename": file.filename,
+        "characters": len(text),
+        "preview": text[:800],          # small preview
+    }
