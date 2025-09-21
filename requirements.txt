@@ -8,12 +8,19 @@ sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 aiosqlite>=0.19.0  # Optional: for local SQLite development
 
+
 # Authentication & Security
-passlib[bcrypt]>=1.7.0
-python-jose>=3.3.0  # Better JWT support than pyjwt
-python-multipart>=0.0.0
+# Pin to avoid Python 3.13 bcrypt/passlib bug
+bcrypt==4.0.1
+passlib==1.7.4
+python-jose>=3.3.0
+python-multipart>=0.0.9
 itsdangerous>=2.1.0
 email-validator>=2.0.0
+
+fastapi==0.116.2
+starlette==0.48.0
+
 
 # File Processing
 pdfplumber>=0.10.0
