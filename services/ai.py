@@ -1,56 +1,75 @@
+# backend/services/ai.py
+import os
+from typing import Dict
 from core.config import settings
 
-def improve_resume(resume_text: str, job_desc: str):
-    if settings.AI_PROVIDER.lower() != "openai":
-        return _mock_response(resume_text, job_desc)
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
 
-    import requests, json
-    api_key = settings.OPENAI_API_KEY
-    if not api_key:
-        return _mock_response(resume_text, job_desc)
+def _client():
+    if settings.AI_PROVIDER != "openai":
+        return None
+    if not settings.OPENAI_API_KEY or OpenAI is None:
+        return None
+    return OpenAI(api_key=settings.OPENAI_API_KEY)
 
-    prompt = f"""
-You are a career coach. Improve the following resume content to better match the job description.
-Return JSON with keys: summary, bullets (array of 4), cover_letter.
+SYSTEM_SUGGEST = """You are an ATS-savvy CV optimization assistant.
+- Analyze the candidate CV against the job description.
+- Give precise, up-to-date guidance: missing hard skills/tools, certifications, phrasing that ATS favors.
+- Prefer short, actionable bullets. Use UK/US spelling neutral language.
+- Do NOT hallucinate experience; if missing, suggest learning/wording alternatives.
+Return JSON with: 'summary', 'missing_skills', 'phrasing_tips', 'section_level_tweaks'."""
 
-Resume:
-{resume_text[:6000]}
-
-Job Description:
-{job_desc[:4000]}
+SYSTEM_REWRITE = """You are an expert CV editor producing ATS-friendly rewrites.
+- Rewrite the candidate's CV to align with the job description.
+- Preserve truth; never invent roles, dates, or employers.
+- Optimize for keyword coverage and clarity, use strong action verbs, quantify impact when possible.
+- Keep the structure: Summary, Experience (bullets), Skills, Education, Certifications.
+- Output plain text only, ready to paste into a DOCX.
 """
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
-    payload = {
-        "model": settings.OPENAI_MODEL,
-        "messages": [{"role":"user","content": prompt}],
-        "temperature": 0.3
-    }
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=60)
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
-        try:
-            data = json.loads(content)
-        except Exception:
-            data = _mock_response(resume_text, job_desc)
-        return {
-            "summary": data.get("summary","Seasoned professional with impact."),
-            "bullets": data.get("bullets", _mock_response(resume_text, job_desc)["bullets"]),
-            "cover_letter": data.get("cover_letter", _mock_response(resume_text, job_desc)["cover_letter"]),
-        }
-    except Exception:
-        return _mock_response(resume_text, job_desc)
 
-def _mock_response(resume_text: str, job_desc: str):
-    kws = list({w for w in job_desc.lower().split() if w.isalpha()})[:5]
-    return {
-        "summary": "Results-driven candidate aligning experience with the role, emphasizing measurable outcomes and key domain skills.",
-        "bullets": [
-            f"Tailored resume to highlight {', '.join(kws) or 'relevant skills'} and quantifiable impact.",
-            "Optimized section ordering (Summary → Experience → Skills → Education) for ATS and clarity.",
-            "Converted passive statements to action-oriented bullets using metrics (%, $, time saved).",
-            "Ensured consistent formatting, tense, and parallel structure across achievements.",
-        ],
-        "cover_letter": "Dear Hiring Manager,\n\nI am excited to apply for this role. My background aligns strongly with the requirements, and I have a track record of delivering measurable results. I welcome the opportunity to contribute and discuss how my experience can help your team.\n\nSincerely,\nYour Name"
-    }
+def ai_suggestions(cv_text: str, jd_text: str) -> Dict:
+    if settings.AI_PROVIDER != "openai" or not settings.OPENAI_API_KEY or OpenAI is None:
+        # Mock: simple deterministic placeholder
+        return {
+            "summary": "Focus on aligning your technical stack and outcomes with the JD.",
+            "missing_skills": ["docker", "kubernetes"] if "docker" in jd_text.lower() else [],
+            "phrasing_tips": [
+                "Use action verbs (led, implemented, optimized) and quantify results.",
+                "Mirror exact JD terminology where accurate."
+            ],
+            "section_level_tweaks": {
+                "Summary": "Mention role title from JD and 2–3 matching core skills.",
+                "Skills": "Group tools by category; put required ones first.",
+            }
+        }
+    client = _client()
+    prompt = f"JOB DESCRIPTION:\n{jd_text}\n\nCANDIDATE CV:\n{cv_text}\n"
+    resp = client.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role":"system","content":SYSTEM_SUGGEST},{"role":"user","content":prompt}],
+        temperature=0.2,
+    )
+    import json
+    try:
+        return json.loads(resp.choices[0].message.content)
+    except Exception:
+        # fallback if model didn’t return strict JSON
+        return {"summary": resp.choices[0].message.content}
+
+def ai_rewrite(cv_text: str, jd_text: str) -> str:
+    if settings.AI_PROVIDER != "openai" or not settings.OPENAI_API_KEY or OpenAI is None:
+        return ("[Mock rewrite]\n"
+                "• Align your headline with the JD title.\n"
+                "• Front-load required tools/skills.\n"
+                "• Add quantified impact in bullets.")
+    client = _client()
+    prompt = f"JOB DESCRIPTION:\n{jd_text}\n\nORIGINAL CV:\n{cv_text}\n"
+    resp = client.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role":"system","content":SYSTEM_REWRITE},{"role":"user","content":prompt}],
+        temperature=0.2,
+    )
+    return resp.choices[0].message.content.strip()
