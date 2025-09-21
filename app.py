@@ -8,25 +8,18 @@ from db.session import Base, engine
 from routers import auth, resume, health, auth_reset
 from routers import analyze as analyze_router, rewrite as rewrite_router
 
-# --- DB bootstrap (create tables + tolerant column adds) ----------------------
+# --- DB bootstrap -------------------------------------------------------------
 Base.metadata.create_all(bind=engine)
 
-# Do tolerant ALTERs (ok if columns already exist)
-with engine.begin() as conn:  # begin() auto-commits/rolls back
+with engine.begin() as conn:
     try:
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pro BOOLEAN DEFAULT FALSE"
-        ))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pro BOOLEAN DEFAULT FALSE"))
     except Exception as e:
         print(f"[users.is_pro] note: {e}")
     try:
-        conn.execute(text(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-        ))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
     except Exception as e:
         print(f"[users.created_at] note: {e}")
-
-    # These only matter if you actually have the tables:
     try:
         conn.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS original_filename VARCHAR"))
         conn.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS file_size INTEGER"))
@@ -34,7 +27,6 @@ with engine.begin() as conn:  # begin() auto-commits/rolls back
         conn.execute(text("ALTER TABLE resumes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
     except Exception as e:
         print(f"[resumes.*] note: {e}")
-
     try:
         conn.execute(text("ALTER TABLE analyses ADD COLUMN IF NOT EXISTS score INTEGER"))
         conn.execute(text("ALTER TABLE analyses ADD COLUMN IF NOT EXISTS analysis_type VARCHAR DEFAULT 'ats'"))
@@ -60,21 +52,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Routers ------------------------------------------------------------------
-# DO NOT add a prefix here if the router already has one defined internally
-app.include_router(health.router)                # health has /health inside the router
-app.include_router(auth.router)                  # auth router already has prefix="/auth"
-app.include_router(auth_reset.router)            # auth-reset also uses prefix="/auth"
-app.include_router(resume.router)                # resume router uses prefix="/resumes"
+# Routers (no extra prefixes; they already have them)
+app.include_router(health.router)          # /health
+app.include_router(auth.router)            # /auth/*
+app.include_router(auth_reset.router)      # /auth/*
+app.include_router(resume.router)          # /resumes/*
 
-# It's fine to add an outer namespace if you WANT /api/analyze and /api/rewrite
-app.include_router(analyze_router.router, prefix="/api")   # becomes /api/analyze/*
-app.include_router(rewrite_router.router, prefix="/api")   # becomes /api/rewrite/*
+# /api namespace for analyze & rewrite
+app.include_router(analyze_router.router, prefix="/api")   # /api/analyze/*
+app.include_router(rewrite_router.router, prefix="/api")   # /api/rewrite/*
 
-# --- Lifecycle / misc ---------------------------------------------------------
+# Legacy alias: also accept /resume/upload (singular)
+from routers.resume import upload_resume as _resume_upload
+app.add_api_route("/resume/upload", _resume_upload, methods=["POST"])
+
+# Lifecycle & misc
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 CV Optimizer API starting up…")
+    print("🚀 CV Optimizer API starting…")
     print(f"🌐 ENV: {settings.ENV}")
     print(f"🔗 CORS origins: {origins}")
     try:

@@ -1,48 +1,43 @@
 # Core Framework
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-gunicorn>=21.0.0
-
-# Database & ORM
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-aiosqlite>=0.19.0  # Optional: for local SQLite development
-
-
-# Authentication & Security
-# Pin to avoid Python 3.13 bcrypt/passlib bug
-bcrypt==4.0.1
-passlib==1.7.4
-python-jose>=3.3.0
-python-multipart>=0.0.9
-itsdangerous>=2.1.0
-email-validator>=2.0.0
-
 fastapi==0.116.2
 starlette==0.48.0
+uvicorn[standard]==0.30.6
+gunicorn==22.0.0
 
+# Database & ORM
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.9
+aiosqlite==0.20.0
+
+# Authentication & Security (PINNED – fixes Py3.13 bcrypt bug)
+bcrypt==4.0.1
+passlib==1.7.4
+python-jose==3.3.0
+python-multipart==0.0.9
+itsdangerous==2.2.0
+email-validator==2.2.0
 
 # File Processing
-pdfplumber>=0.10.0
-python-docx>=1.1.0
-textstat>=0.7.0
+pdfplumber==0.11.4
+python-docx==1.1.2
+textstat==0.7.3
 
 # Pydantic & Configuration
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-python-dotenv>=1.0.0
+pydantic==2.11.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
 
 # Payments
-stripe>=8.0.0
+stripe==12.5.1
 
 # HTTP Client
-requests>=2.31.0
+requests==2.32.3
 
-# NEW: ATS & AI Features (Highly Recommended)
-rapidfuzz>=3.9.7  # Fast fuzzy string matching for skills matching
-openai>=1.40.0    # Modern OpenAI SDK for AI features
-tiktoken>=0.7.0   # Token counting for cost control
+# ATS & AI
+rapidfuzz==3.9.7
+openai==1.44.1
+tiktoken==0.7.0
 
-# NEW: Utilities
-jinja2>=3.1.0     # For email templates (if doing email notifications)
-aiofiles>=23.0.0  # Async file handling (better performance)
+# Utilities
+jinja2==3.1.4
+aiofiles==24.1.0
