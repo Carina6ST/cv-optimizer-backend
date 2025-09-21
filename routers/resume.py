@@ -42,9 +42,11 @@ async def upload_resume(
         # If you don't have a Resume model or don't want to store it, ignore DB errors
         saved_id = None
 
-    return {
-        "id": saved_id,                 # None if not saved
-        "filename": file.filename,
-        "characters": len(text),
-        "preview": text[:800],          # small preview
-    }
+    return {"filename": file.filename, "characters": len(text), "preview": text[:800]}
+# Accept legacy singular path too: /resume/upload
+router.add_api_route(
+    "/resume/upload",  # singular
+    upload_resume,
+    methods=["POST"],
+    response_model=None,
+)
