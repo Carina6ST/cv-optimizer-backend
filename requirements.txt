@@ -3,6 +3,7 @@ starlette
 uvicorn[standard]
 python-multipart
 sqlalchemy
+psycopg2-binary
 passlib[bcrypt]
 pyjwt
 email-validator
@@ -15,4 +16,6 @@ python-dotenv
 requests
 stripe>=5.0
 gunicorn
+
+
 
